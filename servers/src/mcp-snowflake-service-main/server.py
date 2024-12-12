@@ -1,25 +1,36 @@
-#!/Users/mclancy/claude/.mcp/bin/python
 import os
 import asyncio
 import logging
 import json
 import time
-import snowflake.connector
+from typing import Optional, Any
+from pathlib import Path
 from dotenv import load_dotenv
-import mcp.server.stdio
+import snowflake.connector
 from mcp.server import Server
+from mcp.server import stdio
 from mcp.types import Tool, ServerResult, TextContent
 from contextlib import closing
-from typing import Optional, Any
+
+# Load environment variables from .env file
+env_path = Path(__file__).parent / '.env'
+load_dotenv(dotenv_path=env_path)
 
 # Configure logging
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-logger = logging.getLogger('snowflake_server')
 
-load_dotenv()
+# Disable debug logging from snowflake connector
+logging.getLogger('snowflake.connector').setLevel(logging.WARNING)
+logging.getLogger('snowflake.connector.telemetry').setLevel(logging.WARNING)
+logging.getLogger('snowflake.connector.network').setLevel(logging.WARNING)
+logging.getLogger('snowflake.connector.auth').setLevel(logging.WARNING)
+logging.getLogger('snowflake.connector.vendored').setLevel(logging.WARNING)
+logging.getLogger('urllib3').setLevel(logging.WARNING)
+
+logger = logging.getLogger('snowflake_server')
 
 class SnowflakeConnection:
     """
@@ -27,44 +38,113 @@ class SnowflakeConnection:
     """
     def __init__(self):
         # Initialize configuration
-        self.config = {
-            "user": os.getenv("SNOWFLAKE_USER"),
-            "password": os.getenv("SNOWFLAKE_PASSWORD"),
-            "account": os.getenv("SNOWFLAKE_ACCOUNT"),
-            "database": os.getenv("SNOWFLAKE_DATABASE"),
-            "warehouse": os.getenv("SNOWFLAKE_WAREHOUSE"),
+        self.config: dict[str, str] = {}
+        
+        # Required environment variables
+        env_vars = {
+            "user": "SNOWFLAKE_USER",
+            "password": "SNOWFLAKE_PASSWORD",
+            "account": "SNOWFLAKE_ACCOUNT",
+            "database": "SNOWFLAKE_DATABASE",
+            "schema": "SNOWFLAKE_SCHEMA",
+            "warehouse": "SNOWFLAKE_WAREHOUSE",
+            "role": "SNOWFLAKE_ROLE"
         }
+        
+        # Load all environment variables
+        for config_key, env_var in env_vars.items():
+            value = os.getenv(env_var)
+            if not value:
+                raise ValueError(f"Missing required environment variable: {env_var}")
+            self.config[config_key] = value
+            
         self.conn: Optional[snowflake.connector.SnowflakeConnection] = None
-        logger.info(f"Initialized with config (excluding password): {json.dumps({k:v for k,v in self.config.items() if k != 'password'})}")
-    
+        
+        # Check available warehouses
+        self.list_available_warehouses()
+
+    def list_available_warehouses(self):
+        """
+        List all warehouses available to the current user
+        """
+        try:
+            # Use main connection with proper warehouse and role
+            conn = self.ensure_connection()
+            if not conn:
+                raise Exception("Failed to establish connection")
+                
+            cursor = conn.cursor()
+            cursor.execute("SHOW WAREHOUSES")
+            warehouses = cursor.fetchall()
+            logger.info("Available warehouses:")
+            for warehouse in warehouses:
+                logger.info(f"Name: {warehouse[0]}, Size: {warehouse[1]}, State: {warehouse[3]}")
+            cursor.close()
+        except Exception as e:
+            logger.error(f"Error listing warehouses: {str(e)}")
+            raise
+
     def ensure_connection(self) -> snowflake.connector.SnowflakeConnection:
         """
         Ensure database connection is available, create new connection if it doesn't exist or is disconnected
         """
         try:
-            # Check if connection needs to be re-established
-            if self.conn is None:
-                logger.info("Creating new Snowflake connection...")
+            if not self.conn:
+                logger.info("Creating new connection...")
+                
+                # First create connection without warehouse
                 self.conn = snowflake.connector.connect(
-                    **self.config,
-                    client_session_keep_alive=True,
+                    user=self.config["user"],
+                    password=self.config["password"],
+                    account=self.config["account"],
+                    role=self.config["role"],
                     network_timeout=15,
                     login_timeout=15
                 )
-                self.conn.cursor().execute("ALTER SESSION SET TIMEZONE = 'UTC'")
-                logger.info("New connection established and configured")
-            
-            #  Test if connection is valid
-            try:
-                self.conn.cursor().execute("SELECT 1")
-            except:
-                logger.info("Connection lost, reconnecting...")
-                self.conn = None
-                return self.ensure_connection()
                 
+                # Set up session in a transaction to ensure atomicity
+                with self.conn.cursor() as cursor:
+                    cursor.execute("BEGIN")
+                    try:
+                        # First check role
+                        cursor.execute("SELECT CURRENT_ROLE()")
+                        result = cursor.fetchone()
+                        current_role = result[0] if result else "Unknown"
+                        logger.info(f"Connected with role: {current_role}")
+                        
+                        # Check warehouse grants
+                        cursor.execute(f"""
+                            SELECT privilege, granted_on, name 
+                            FROM information_schema.object_privileges 
+                            WHERE privilege = 'USAGE' 
+                            AND granted_on = 'WAREHOUSE'
+                            AND grantee_name = '{current_role}'
+                        """)
+                        warehouse_grants = cursor.fetchall()
+                        logger.info(f"Warehouse grants for role {current_role}: {warehouse_grants}")
+                        
+                        cursor.execute(f"USE ROLE {self.config['role']}")
+                        cursor.execute(f"USE WAREHOUSE {self.config['warehouse']}")
+                        cursor.execute(f"USE DATABASE {self.config['database']}")
+                        cursor.execute(f"USE SCHEMA {self.config['schema']}")
+                        cursor.execute("COMMIT")
+                    except Exception as e:
+                        cursor.execute("ROLLBACK")
+                        raise Exception(f"Failed to set up session context: {str(e)}")
+                    
+                    # Verify connection
+                    cursor.execute("SELECT CURRENT_DATABASE(), CURRENT_SCHEMA(), CURRENT_WAREHOUSE(), CURRENT_ROLE()")
+                    context = cursor.fetchone()
+                    if context:
+                        logger.info(f"Connected successfully - Database: {context[0]}, Schema: {context[1]}, Warehouse: {context[2]}, Role: {context[3]}")
+            
             return self.conn
+            
         except Exception as e:
             logger.error(f"Connection error: {str(e)}")
+            if self.conn:
+                self.conn.close()
+                self.conn = None
             raise
 
     def execute_query(self, query: str) -> list[dict[str, Any]]:
@@ -208,7 +288,7 @@ async def main():
         initialization_options = server.create_initialization_options()
         logger.info("Starting server")
         
-        async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
+        async with stdio.stdio_server() as (read_stream, write_stream):
             await server.run(
                 read_stream,
                 write_stream,
