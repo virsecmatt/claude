@@ -4,3 +4,4 @@ otto.sqlite
 tech_support_playbooks
 .DS_Store
 .mcp
+.python-version
