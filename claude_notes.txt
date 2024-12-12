@@ -1,0 +1,39 @@
+# Follow logs in real-time
+tail -n 20 -f ~/Library/Logs/Claude/mcp*.log
+python3.12 -m pip install --upgrade pip
+
+snowsql -a pvduseast1 -u mclancy@virsec.com
+
+
+
+https://dyb09003.us-east-1.snowflakecomputing.com/console/login#/
+
+https://app.snowflake.com/rpmzixd/pdvuseast1/#/homepage
+
+python combine_tables.py --input "path/to/your/*.db" --output "combined.db"
+
+python combine_tables.py --input "*.db" --output "combined.db"
+
+
+zua8mdq8RUC-mgz!yzy
+
+
+
+Open issues for 2008 - https://virsecsystems.atlassian.net/issues/?filter=12330&jql=project%20%3D%20%22Customer%20Support%22%20AND%20text%20~2008%20and%20status%20not%20in%20%28ENGG_RESOLVED%2C%20%22Closed%20-%20Enhancement%22%2C%20Done%2C%20Rejected%29%20and%20resolution%20%3D%20Unresolved%20ORDER%20BY%20priority%20DESC%2C%20updated%20Desc%2C%20created%20DESC
+
+
+closed issues 
+
+
+/Users/matthewclancy/.pyenv/shims:/Users/matthewclancy/.pyenv/bin:/usr/local/opt/python@3.13/bin:/usr/local/opt/python@3.13/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin
+
+
+Snowflake
+list_tables
+describe_table
+read_query
+
+GRANT USAGE ON DATABASE DEV_68CFC3_STAGE_DB TO ROLE CLAUDE_MCP_ROLE;
+GRANT USAGE ON ALL SCHEMAS IN DATABASE DEV_68CFC3_STAGE_DB TO ROLE CLAUDE_MCP_ROLE;
+GRANT SELECT ON ALL TABLES IN DATABASE DEV_68CFC3_STAGE_DB TO ROLE CLAUDE_MCP_ROLE;
+GRANT SELECT ON ALL VIEWS IN DATABASE DEV_68CFC3_STAGE_DB ROLE TO CLAUDE_MCP_ROLE;

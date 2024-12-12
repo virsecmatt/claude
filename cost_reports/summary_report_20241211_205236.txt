@@ -1,0 +1,37 @@
+AWS Cost Analysis Summary
+==================================================
+
+Top 5 Accounts by Cost:
+              Total_Cost  Average_Daily_Cost  Cost_Std_Dev  Cost_Percentage
+Account                                                                    
+992382740757     1099.75                2.68         16.01            48.16
+525322609227      724.48                1.64          8.15            31.72
+912096838713      252.13                0.83          4.78            11.04
+208285391353      145.09                0.28          2.43             6.35
+563742955076       56.90                0.19          0.96             2.49
+
+Top 10 Services by Cost:
+                                   Total_Cost  Percentage
+Service                                                  
+BoxUsage:m6a.2xlarge               278.440704       12.19
+USE1-Kafka.m5.large                267.120000       11.70
+InstanceUsage:db.r6g.xl            202.099200        8.85
+DataTransfer-Out-Bytes             151.373470        6.63
+USE1-Kafka.m7g.4xlarge             117.504000        5.15
+NatGateway-Hours                   114.345000        5.01
+StorageIOUsage                      85.057245        3.72
+LoadBalancerUsage                   83.685000        3.66
+EUN1-KafkaServerless-ClusterHours   76.320000        3.34
+USE1-DataProcessing-Bytes           58.978727        2.58
+
+Daily Cost Trends:
+            Total_Cost  Service_Count  Moving_Average
+Date                                                 
+2024-11-11     2218.61           2296             NaN
+2024-11-12       65.10            204             NaN
+
+Cost Anomalies Detected:
+Empty DataFrame
+Columns: [Cost, Rolling_Mean, Upper_Bound, Lower_Bound, Is_Anomaly]
+Index: []
+
