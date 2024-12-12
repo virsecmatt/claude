@@ -5,3 +5,4 @@ tech_support_playbooks
 .DS_Store
 .mcp
 .python-version
+.venv
