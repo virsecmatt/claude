@@ -92,47 +92,39 @@ class SnowflakeConnection:
             if not self.conn:
                 logger.info("Creating new connection...")
                 
-                # First create connection without warehouse
+                # Create initial connection without warehouse
                 self.conn = snowflake.connector.connect(
                     user=self.config["user"],
                     password=self.config["password"],
                     account=self.config["account"],
+                    database=self.config["database"],
+                    schema=self.config["schema"],
                     role=self.config["role"],
                     network_timeout=15,
                     login_timeout=15
                 )
                 
-                # Set up session in a transaction to ensure atomicity
+                # First, list available warehouses
                 with self.conn.cursor() as cursor:
-                    cursor.execute("BEGIN")
-                    try:
-                        # First check role
-                        cursor.execute("SELECT CURRENT_ROLE()")
-                        result = cursor.fetchone()
-                        current_role = result[0] if result else "Unknown"
-                        logger.info(f"Connected with role: {current_role}")
-                        
-                        # Check warehouse grants
-                        cursor.execute(f"""
-                            SELECT privilege, granted_on, name 
-                            FROM information_schema.object_privileges 
-                            WHERE privilege = 'USAGE' 
-                            AND granted_on = 'WAREHOUSE'
-                            AND grantee_name = '{current_role}'
-                        """)
-                        warehouse_grants = cursor.fetchall()
-                        logger.info(f"Warehouse grants for role {current_role}: {warehouse_grants}")
-                        
-                        cursor.execute(f"USE ROLE {self.config['role']}")
-                        cursor.execute(f"USE WAREHOUSE {self.config['warehouse']}")
-                        cursor.execute(f"USE DATABASE {self.config['database']}")
-                        cursor.execute(f"USE SCHEMA {self.config['schema']}")
-                        cursor.execute("COMMIT")
-                    except Exception as e:
-                        cursor.execute("ROLLBACK")
-                        raise Exception(f"Failed to set up session context: {str(e)}")
+                    cursor.execute("SHOW WAREHOUSES")
+                    warehouses = cursor.fetchall()
+                    logger.info("Available warehouses:")
+                    available_warehouses = []
+                    for warehouse in warehouses:
+                        warehouse_name = warehouse[0]
+                        available_warehouses.append(warehouse_name)
+                        logger.info(f"Found warehouse: {warehouse_name}")
                     
-                    # Verify connection
+                    # Check if our configured warehouse exists
+                    desired_warehouse = self.config['warehouse']
+                    if desired_warehouse in available_warehouses:
+                        cursor.execute(f"USE WAREHOUSE {desired_warehouse}")
+                        logger.info(f"Successfully set warehouse to {desired_warehouse}")
+                    else:
+                        available_wh_list = ", ".join(available_warehouses)
+                        raise Exception(f"Configured warehouse {desired_warehouse} not found. Available warehouses: {available_wh_list}")
+                    
+                    # Verify connection context
                     cursor.execute("SELECT CURRENT_DATABASE(), CURRENT_SCHEMA(), CURRENT_WAREHOUSE(), CURRENT_ROLE()")
                     context = cursor.fetchone()
                     if context:
